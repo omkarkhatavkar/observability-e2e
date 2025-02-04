@@ -1,0 +1,28 @@
+# StorageClass definition for local storage (no provisioner)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner  # No provisioner, use local storage
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# PersistentVolume definition for local storage
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backup-restore-pv-test  # Name of the PV
+  labels:
+    type: local  # Label to identify the storage type
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi  # Storage size
+  persistentVolumeReclaimPolicy: Retain  # Retain PV even after PVC deletion
+  storageClassName: local-storage  # References the StorageClass
+  volumeMode: Filesystem
+  hostPath:
+    path: /data  # Path to the local storage directory (must exist on node)
+    type: DirectoryOrCreate  # Create the directory if it doesn't exist

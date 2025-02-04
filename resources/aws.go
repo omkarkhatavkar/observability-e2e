@@ -55,8 +55,47 @@ func (s *S3Client) CreateBucket(bucketName string, region string) error {
 	return nil
 }
 
+// DeleteAllObjects deletes all objects in an S3 bucket
+func (s *S3Client) DeleteAllObjects(bucketName string) error {
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucketName),
+	}
+	for {
+		result, err := s.client.ListObjectsV2(input)
+		if err != nil {
+			return fmt.Errorf("failed to list objects: %v", err)
+		}
+
+		if len(result.Contents) == 0 {
+			break
+		}
+
+		var objectsToDelete []*s3.ObjectIdentifier
+		for _, obj := range result.Contents {
+			objectsToDelete = append(objectsToDelete, &s3.ObjectIdentifier{Key: obj.Key})
+		}
+
+		_, err = s.client.DeleteObjects(&s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3.Delete{
+				Objects: objectsToDelete,
+				Quiet:   aws.Bool(true),
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete objects: %v", err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteBucket deletes the S3 bucket
 func (s *S3Client) DeleteBucket(bucketName string) error {
+	// Delete all objects inside the bucket
+	if err := s.DeleteAllObjects(bucketName); err != nil {
+		return err
+	}
 	_, err := s.client.DeleteBucket(&s3.DeleteBucketInput{
 		Bucket: aws.String(bucketName),
 	})

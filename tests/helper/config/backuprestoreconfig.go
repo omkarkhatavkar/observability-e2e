@@ -10,6 +10,7 @@ type BackupRestoreConfig struct {
 	S3Region                   string `json:"s3Region" yaml:"s3Region" default:"us-west-1"`
 	S3Endpoint                 string `json:"s3Endpoint" yaml:"s3Endpoint"`
 	VolumeName                 string `json:"volumeName" yaml:"volumeName"`
+	StorageClassName           string `json:"storageClassName" yaml:"storageClassName"`
 	CredentialSecretName       string `json:"credentialSecretName" yaml:"credentialSecretName"`
 	CredentialSecretNamespace  string `json:"credentialSecretNamespace" yaml:"credentialSecretNamespace" default:"default"`
 	TLSSkipVerify              bool   `json:"tlsSkipVerify" yaml:"tlsSkipVerify" default:"true"`

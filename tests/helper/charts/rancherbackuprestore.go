@@ -3,8 +3,11 @@ package charts
 import (
 	"context"
 	"fmt"
+	"time"
 
+	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
+	"github.com/rancher/observability-e2e/tests/helper/utils"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	"github.com/rancher/rancher/tests/v2/actions/secrets"
 	"github.com/rancher/shepherd/clients/rancher"
@@ -24,15 +27,30 @@ const (
 	RancherBackupRestoreName          = "rancher-backup"
 	RancherBackupRestoreCRDName       = "rancher-backup-crd"
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
+	localStorageClass                 = "../helper/yamls/localStoarageClass.yaml"
+	backupSteveType                   = "resources.cattle.io.backup"
+	restoreSteveType                  = "resources.cattle.io.restore"
 )
 
 var (
 	SecretName = namegen.AppendRandomString("bro-secret")
 )
 
+type BackupOptions struct {
+	Name                       string
+	ResourceSetName            string
+	RetentionCount             int64
+	EncryptionConfigSecretName string
+}
+
 // InstallRancherBackupRestoreChart installs the Rancher backup/restore chart with optional storage configuration.
-func InstallRancherBackupRestoreChart(client *rancher.Client, installOptions *InstallOptions, rancherBackupRestoreOpts *RancherBackupRestoreOpts, withStorage bool) error {
-	// Retrieve the server URL setting from Rancher.
+func InstallRancherBackupRestoreChart(
+	client *rancher.Client,
+	installOptions *InstallOptions,
+	rancherBackupRestoreOpts *RancherBackupRestoreOpts,
+	withStorage bool,
+	storageType string,
+) error {
 	serverSetting, err := client.Management.Setting.ByID(serverURLSettingID)
 	if err != nil {
 		return err
@@ -45,7 +63,7 @@ func InstallRancherBackupRestoreChart(client *rancher.Client, installOptions *In
 		Namespace:      RancherBackupRestoreNamespace,
 		Host:           serverSetting.Value,
 	}
-	chartInstallAction := newBackupChartInstallAction(backupChartInstallActionPayload, withStorage, rancherBackupRestoreOpts)
+	chartInstallAction := newBackupChartInstallAction(backupChartInstallActionPayload, withStorage, rancherBackupRestoreOpts, storageType)
 
 	// Get the catalog client for the specified cluster.
 	catalogClient, err := client.GetClusterCatalogClient(installOptions.Cluster.ID)
@@ -117,12 +135,13 @@ func CreateOpaqueS3Secret(steveClient *v1.Client, backupRestoreConfig *localConf
 }
 
 // newBackupChartInstallAction prepares the chart installation action with storage and payload options.
-func newBackupChartInstallAction(p *PayloadOpts, withStorage bool, rancherBackupRestoreOpts *RancherBackupRestoreOpts) *types.ChartInstallAction {
+func newBackupChartInstallAction(p *PayloadOpts, withStorage bool, rancherBackupRestoreOpts *RancherBackupRestoreOpts, storageType string) *types.ChartInstallAction {
 	// Configure backup values if storage is enabled.
 	backupValues := map[string]interface{}{}
 	if withStorage {
-		backupValues = map[string]any{
-			"s3": map[string]any{
+		switch storageType {
+		case "s3":
+			backupValues["s3"] = map[string]any{
 				"bucketName":                rancherBackupRestoreOpts.BucketName,
 				"credentialSecretName":      rancherBackupRestoreOpts.CredentialSecretName,
 				"credentialSecretNamespace": rancherBackupRestoreOpts.CredentialSecretNamespace,
@@ -130,7 +149,18 @@ func newBackupChartInstallAction(p *PayloadOpts, withStorage bool, rancherBackup
 				"endpoint":                  rancherBackupRestoreOpts.Endpoint,
 				"folder":                    rancherBackupRestoreOpts.Folder,
 				"region":                    rancherBackupRestoreOpts.Region,
-			},
+			}
+
+		case "storageClass":
+			backupValues["persistence"] = map[string]any{
+				"enabled":      rancherBackupRestoreOpts.Enabled,
+				"size":         "1Gi", // Default size, can be modified
+				"storageClass": rancherBackupRestoreOpts.StorageClassName,
+			}
+
+		default:
+			fmt.Printf("Unsupported storage type: %s\n", storageType)
+			return nil
 		}
 	}
 
@@ -179,4 +209,113 @@ func UninstallBackupRestoreChart(client *rancher.Client, clusterID string, names
 		}
 	}
 	return nil
+}
+
+// Function to handle the creation of resources based on StorageType
+func CreateStorageResources(storageType string, client *rancher.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) error {
+	switch storageType {
+	case "s3":
+		// Instead of By, we just return an error message
+		_, err := CreateOpaqueS3Secret(client.Steve, backupRestoreConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create opaque secret with S3 credentials: %v", err)
+		}
+
+	case "storageClass":
+		err := utils.DeployYamlResource(client, localStorageClass, RancherBackupRestoreNamespace)
+		if err != nil {
+			return fmt.Errorf("failed to create the storage class and pv: %v", err)
+		}
+
+	default:
+		return fmt.Errorf("invalid storage type specified: %s", storageType)
+	}
+	return nil
+}
+
+// Function to handle the delete of resources based on StorageType
+func DeleteStorageResources(storageType string, client *rancher.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) error {
+	switch storageType {
+	case "s3":
+		// TODO:: Need to implement it.
+		return nil
+	case "storageClass":
+		err := utils.DeleteYamlResource(client, localStorageClass, RancherBackupRestoreNamespace)
+		if err != nil {
+			return fmt.Errorf("failed to delete the storage class and pv: %v", err)
+		}
+
+	default:
+		return fmt.Errorf("invalid storage type specified: %s", storageType)
+	}
+	return nil
+}
+
+func setBackupObject(backupOptions BackupOptions) *bv1.Backup {
+	// Create a Backup object using provided options
+	backup := &bv1.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: backupOptions.Name,
+		},
+		Spec: bv1.BackupSpec{
+			ResourceSetName:            backupOptions.ResourceSetName,
+			RetentionCount:             backupOptions.RetentionCount,
+			EncryptionConfigSecretName: backupOptions.EncryptionConfigSecretName,
+		},
+	}
+	return backup
+}
+
+func VerifyBackupCompleted(client *rancher.Client, steveType string, backup *v1.SteveAPIObject) (bool, string, error) {
+	timeout := 3 * time.Minute
+	interval := 2 * time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	timeoutChan := time.After(timeout)
+
+	for {
+		select {
+		case <-ticker.C:
+			backupObj, err := client.Steve.SteveType(steveType).ByID(backup.ID)
+			if err != nil {
+				return false, "", err
+			}
+
+			backupStatus := &bv1.BackupStatus{}
+			err = utils.ConvertToStruct(backupObj.Status, backupStatus)
+			if err != nil {
+				return false, "", err
+			}
+
+			// Check if backup is ready
+			for _, condition := range backupStatus.Conditions {
+				if condition.Type == "Ready" && condition.Status == corev1.ConditionTrue {
+					e2e.Logf("Backup is completed!")
+					return true, backupStatus.Filename, nil
+				}
+			}
+
+		case <-timeoutChan:
+			return false, "", fmt.Errorf("timeout waiting for backup to complete")
+		}
+	}
+}
+
+func CreateRancherBackupAndVerifyCompleted(client *rancher.Client, backupOptions BackupOptions) (*v1.SteveAPIObject, string, error) {
+	backup := setBackupObject(backupOptions)
+	backupTemplate := bv1.NewBackup("", backupOptions.Name, *backup)
+	client, err := client.ReLogin() // This needs to be done as the chart installed changed the schema
+	if err != nil {
+		return nil, "", err
+	}
+	completedBackup, err := client.Steve.SteveType(backupSteveType).Create(backupTemplate)
+	if err != nil {
+		return nil, "", err
+	}
+	_, backupFileName, err := VerifyBackupCompleted(client, backupSteveType, completedBackup)
+	if err != nil {
+		return nil, "", err
+	}
+	return completedBackup, backupFileName, err
 }

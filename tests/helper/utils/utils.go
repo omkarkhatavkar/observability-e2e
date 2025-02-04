@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -162,5 +163,19 @@ func LoadConfigIntoStruct(filePath string, config interface{}) error {
 	if err := defaults.Set(config); err != nil {
 		return fmt.Errorf("failed to set default values: %w", err)
 	}
+	return nil
+}
+
+// ConvertToStruct converts a source interface{} (typically JSON-like) into a target struct.
+func ConvertToStruct(src interface{}, target interface{}) error {
+	rawData, err := json.Marshal(src)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data: %w", err)
+	}
+
+	if err := json.Unmarshal(rawData, target); err != nil {
+		return fmt.Errorf("failed to unmarshal data: %w", err)
+	}
+
 	return nil
 }

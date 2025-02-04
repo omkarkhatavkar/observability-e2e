@@ -50,6 +50,7 @@ type RancherMonitoringOpts struct {
 // RancherBackupOpts is a struct of the required options to install Rancher Backups with desired chart values.
 type RancherBackupRestoreOpts struct {
 	VolumeName                string
+	StorageClassName          string
 	BucketName                string
 	CredentialSecretName      string
 	CredentialSecretNamespace string
