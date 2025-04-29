@@ -71,7 +71,7 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v3
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -305,7 +305,7 @@ jobs:
 
           # Update the YAML file with the VPC and Subnet IDs
           yq e ".machineconfig.data.subnetId = strenv(SUBNET_ID) | .machineconfig.data.vpcId = strenv(VPC_ID)" -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
-   
+
       - name: Create artifacts directory
         run: mkdir -p ~/artifacts
 
