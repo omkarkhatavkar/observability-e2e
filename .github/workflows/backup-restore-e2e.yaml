@@ -294,19 +294,17 @@ jobs:
       - name: Setup the required configuration files
         id: setup_config
         run: |
-          # 1. Convert example files
-          mv tests/helper/yamls/inputBackupRestoreConfig.yaml.example tests/helper/yamls/inputBackupRestoreConfig.yaml
-          mv tests/helper/yamls/inputClusterConfig.yaml.example tests/helper/yamls/inputClusterConfig.yaml
-
-          # 2. Update Kubernetes version
-          yq e '.clusterspec.spec.kubernetesVersion = "v1.30.8+rke2r1"' -i tests/helper/yamls/inputClusterConfig.yaml
-
-          # 3. Set AWS credentials
-          yq e '.accessKey = strenv(AWS_ACCESS_KEY_ID)' -i tests/helper/yamls/inputBackupRestoreConfig.yaml
-          yq e '.secretKey = strenv(AWS_SECRET_ACCESS_KEY)' -i tests/helper/yamls/inputBackupRestoreConfig.yaml
+          # change the extension from .example to .yaml 
+          mv "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml.example" "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+          mv "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml.example" "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"     
+          
+          # update the details in respective config files 
+          yq e ".clusterspec.spec.kubernetesVersion = ${{ inputs.upstream_cluster_version }} -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
+          yq e ".accessKey = ${{ secrets.aws_access_key }} -i "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+          yq e ".secretKey = ${{ secrets.aws_secret_key }} -i "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml"
 
           # Update the YAML file with the VPC and Subnet IDs
-          yq e ".machineconfig.data.subnetId = ${{ needs.setup.outputs.SUBNET_ID }} | .machineconfig.data.vpcId = ${{ needs.setup.outputs.VPC_ID }}" -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
+          yq e ".machineconfig.data.subnetId = strenv(SUBNET_ID) | .machineconfig.data.vpcId = strenv(VPC_ID)" -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
 
       - name: Create artifacts directory
         run: mkdir -p ~/artifacts
