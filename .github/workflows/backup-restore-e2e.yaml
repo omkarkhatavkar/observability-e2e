@@ -291,11 +291,6 @@ jobs:
             echo "  cleanup: true"
           } > $GITHUB_WORKSPACE/cattle-config.yaml
 
-      - name: Update YAML with VPC and Subnet IDs in 
-        run: |
-          # Update the YAML file with the VPC and Subnet IDs
-          yq e ".machineconfig.data.subnetId = strenv(SUBNET_ID) | .machineconfig.data.vpcId = strenv(VPC_ID)" -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
-   
       - name: Setup the required configuration files
         id: setup_config
         run: |
@@ -306,7 +301,10 @@ jobs:
           # update the details in respective config files 
           yq e ".clusterspec.spec.kubernetesVersion = ${{ inputs.upstream_cluster_version }} -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
           yq e ".accessKey = ${{ secrets.aws_access_key }} -i "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml"
-          yq e ".secretKey = ${{ secrets.aws_secret_key }} -i "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml
+          yq e ".secretKey = ${{ secrets.aws_secret_key }} -i "${{ github.workspace }}/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+
+          # Update the YAML file with the VPC and Subnet IDs
+          yq e ".machineconfig.data.subnetId = strenv(SUBNET_ID) | .machineconfig.data.vpcId = strenv(VPC_ID)" -i "${{ github.workspace }}/tests/helper/yamls/inputClusterConfig.yaml"
 
       - name: Create artifacts directory
         run: mkdir -p ~/artifacts
