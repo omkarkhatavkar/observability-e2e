@@ -1,0 +1,10 @@
+rancher:
+  host:
+  adminToken:
+  insecure: True
+  clusterName: local
+  cleanup: true
+awsCredentials:
+  accessKey: ""
+  secretKey: ""
+  defaultRegion: ""
