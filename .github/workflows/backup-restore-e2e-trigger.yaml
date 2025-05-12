@@ -1,0 +1,44 @@
+name: Backup Restore E2E Trigger
+
+run-name: >
+  Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}, destroy=${{ inputs.destroy_runner }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      destroy_runner:
+        description: Destroy runner
+        default: true
+        type: boolean
+      rancher_version:
+        description: Rancher Manager version
+        default: v2.10.1
+        type: string
+        required: true
+      upstream_cluster_version:
+        description: Rancher RKE2 version
+        default: v1.30.8+rke2r1
+        type: string
+        required: true
+      rancher_repo:
+        description: Rancher Manager repository
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/backup-restore-e2e.yaml
+    with:
+      destroy_runner: ${{ inputs.destroy_runner }}
+      rancher_version: ${{ inputs.rancher_version }}
+      upstream_cluster_version: ${{ inputs.upstream_cluster_version }}
+      rancher_repo: ${{ inputs.rancher_repo }}
+    secrets:
+      aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      rancher_password: ${{ secrets.RANCHER_PASSWORD }}
+      instance_ssh_key: ${{ secrets.INSTANCE_SSH_KEY }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      key_name: ${{ secrets.AWS_KEY_NAME }}
+      encryption_secret_key: ${{ secrets.ENCRYPTION_SECRET_KEY }}
