@@ -235,7 +235,7 @@ func VerifyCluster(rancherClient *rancher.Client, clusterName string) error {
 }
 
 func CreateRKE2Cluster(rancherClient *rancher.Client, cloudCredentialName string) (string, error) {
-	config, err := loadConfig("./../../tests/helper/yamls/inputClusterConfig.yaml")
+	config, err := loadConfig("./../../../tests/helper/yamls/inputClusterConfig.yaml")
 	if err != nil {
 		e2e.Logf("Error loading config: %v", err)
 		return "nil", err

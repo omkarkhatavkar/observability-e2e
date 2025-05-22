@@ -61,7 +61,7 @@ func FailWithReport(message string, callerSkip ...int) {
 }
 
 // Run individual or group of tests with labels using CLI
-// TEST_LABEL_FILTER=backup-restore  /usr/local/go/bin/go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore -v -count=1 -ginkgo.v
+// TEST_LABEL_FILTER=backup-restore  /usr/local/go/bin/go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
