@@ -116,7 +116,7 @@ jobs:
         run: |
           set -e
           mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
-          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
 
       - name: Run Observability Upgrade tests
         id: run_observability_upgrade_tests

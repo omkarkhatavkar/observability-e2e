@@ -312,7 +312,7 @@ jobs:
         run: |
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=backup-restore \
-          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}

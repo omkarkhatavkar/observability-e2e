@@ -1,0 +1,11 @@
+prefix              = "okhatavkar-test"
+aws_region_instance = "us-east-2"
+aws_region_s3       = "us-east-2"
+vpc_cidr            = "10.0.0.0/16"
+subnet_cidr         = "10.0.0.0/24"
+aws_zone            = "us-east-2a"
+ami_id              = "ami-00eb69d236edcfaf8"
+instance_type       = "t2.2xlarge"
+key_name            = "okhatavkar"
+private_key_path    = "~/.ssh/id_rsa"
+root_volume_size    = 60
