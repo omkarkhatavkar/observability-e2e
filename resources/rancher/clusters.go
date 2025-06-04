@@ -267,8 +267,8 @@ func CreateRKE2Cluster(rancherClient *rancher.Client, cloudCredentialName string
 	}
 	err = VerifyCluster(rancherClient, config.ClusterSpec.Metadata.Name)
 	if err != nil {
-		err := fmt.Errorf("cluster %s is now Active", config.ClusterSpec.Metadata.Name)
-		return "nil", err
+		err := fmt.Errorf("cluster %s is not Active", config.ClusterSpec.Metadata.Name)
+		return config.ClusterSpec.Metadata.Name, err
 	}
 	return config.ClusterSpec.Metadata.Name, nil
 }

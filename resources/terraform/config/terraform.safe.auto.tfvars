@@ -8,3 +8,5 @@ ami_id              = "ami-00eb69d236edcfaf8"
 instance_type       = "t2.2xlarge"
 private_key_path    = "~/.ssh/id_rsa"
 root_volume_size    = 60
+cattle_config         = "./../../../cattle-config.yaml"
+input_cluster_config  = "./../../../tests/helper/yamls/inputClusterConfig.yaml"

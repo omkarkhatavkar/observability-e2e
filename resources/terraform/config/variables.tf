@@ -44,6 +44,7 @@ variable "key_name" {
   description = "Key pair name for EC2"
   type        = string
   default     = "test"
+  sensitive   = false
 }
 
 variable "private_key_path" {
@@ -78,7 +79,7 @@ variable "cert_manager_version" {
 variable "encryption_secret_key" {
   description = "Secret key for Kubernetes encryption"
   type        = string
-  sensitive   = true
+  sensitive   = false
 }
 
 variable "cattle_config" {
@@ -96,5 +97,18 @@ variable "input_cluster_config" {
 variable "preserve_eip" {
   description = "create the static eip and attach that to instance for migration scenario"
   type        = bool
-  default     = false
+  default     = true
+}
+variable "rancher_version" {
+  description = "version of rancher under test"
+}
+
+variable "rancher_password" {
+  description = "Bootstrap password for Rancher"
+  type        = string
+  sensitive   = false
+}
+variable "rancher_repo_url" {
+  description = "Helm repository URL to install Rancher"
+  type        = string
 }

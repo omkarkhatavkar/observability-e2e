@@ -29,4 +29,7 @@ module "ec2" {
   encryption_secret_key = var.encryption_secret_key
   input_cluster_config  = var.input_cluster_config
   cattle_config         = var.cattle_config
+  rancher_password      = var.rancher_password
+  rancher_version       = var.rancher_version
+  rancher_repo_url      = var.rancher_repo_url
 }

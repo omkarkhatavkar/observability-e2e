@@ -9,6 +9,13 @@ type TerraformContext struct {
 	Options *terraform.Options
 }
 
+// TerraformOptions is your input struct to control dir, vars, env vars
+type TerraformOptions struct {
+	TerraformDir string
+	Vars         map[string]interface{}
+	EnvVars      map[string]string
+}
+
 // NewTerraformContext initializes a new Terraform context with options.
 func NewTerraformContext(opts TerraformOptions) (*TerraformContext, error) {
 	tfOpts := &terraform.Options{
@@ -34,23 +41,15 @@ func NewTerraformContext(opts TerraformOptions) (*TerraformContext, error) {
 	}, nil
 }
 
-func (ctx *TerraformContext) InitAndApply() error {
-	terraform.InitAndApply(nil, ctx.Options)
-	return nil
+func (ctx *TerraformContext) InitAndApply() (string, error) {
+	return terraform.InitAndApplyE(ginkgo.GinkgoT(), ctx.Options)
 }
 
 func (ctx *TerraformContext) OutputAll() map[string]interface{} {
 	return terraform.OutputAll(ginkgo.GinkgoT(), ctx.Options)
 }
 
-func (ctx *TerraformContext) Destroy() error {
-	terraform.Destroy(nil, ctx.Options)
-	return nil
-}
-
-// TerraformOptions is your input struct to control dir, vars, env vars
-type TerraformOptions struct {
-	TerraformDir string
-	Vars         map[string]interface{}
-	EnvVars      map[string]string
+// Destroy tears down the infrastructure.
+func (ctx *TerraformContext) Destroy() (string, error) {
+	return terraform.DestroyE(ginkgo.GinkgoT(), ctx.Options)
 }

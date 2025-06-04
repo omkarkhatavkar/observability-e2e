@@ -80,6 +80,12 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		e2e.Logf("%v, %v, %v", userList, projList, roleList)
 		Expect(err).NotTo(HaveOccurred())
 
+		DeferCleanup(func() {
+			By("Delete the downstream clusters as part of cleanup")
+			err = resources.DeleteCluster(client, clusterName)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		if params.CreateCluster == true {
 			By("Provisioning a downstream RKE2 cluster...")
 			clusterName, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
@@ -197,14 +203,9 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		} else {
 			Expect(err).NotTo(HaveOccurred())
 		}
-
 		if params.CreateCluster == true {
 			By("Validating downstream clusters are in an Active status...")
 			err = resources.VerifyCluster(client, clusterName)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Delete the downstream clusters are in an Active status...")
-			err = resources.DeleteCluster(client, clusterName)
 			Expect(err).NotTo(HaveOccurred())
 		}
 	},

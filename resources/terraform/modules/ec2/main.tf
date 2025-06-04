@@ -70,19 +70,19 @@ resource "null_resource" "provision_rke2" {
     }
   }
 
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/install_rke2.sh",
-      "sudo /home/ubuntu/install_rke2.sh ${var.rke2_version} ${var.cert_manager_version}"
-    ]
+provisioner "remote-exec" {
+  inline = [
+    "chmod +x /home/ubuntu/install_rke2.sh",
+    "sudo -i bash /home/ubuntu/install_rke2.sh '${var.rke2_version}' '${var.cert_manager_version}' '${var.rancher_version}' '${var.rancher_password}' '${var.rancher_repo_url}'"
+  ]
 
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(var.private_key_path)
-      host        = local.rke2_host_ip
-    }
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file(var.private_key_path)
+    host        = local.rke2_host_ip
   }
+}
 }
 
 resource "null_resource" "update_yaml" {
