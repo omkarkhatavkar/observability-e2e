@@ -48,12 +48,12 @@ var tfCtx *localTerraform.TerraformContext
 var envSecretsTerraformVarMap = map[string]string{
 	"ENCRYPTION_SECRET_KEY": "encryption_secret_key",
 	"RANCHER_PASSWORD":      "rancher_password",
+	"KEY_NAME":              "key_name",
 }
 
 // Non-sensitive config passed directly
 var envTerraformVarMap = map[string]string{
 	"CERT_MANAGER_VERSION": "cert_manager_version",
-	"KEY_NAME":             "key_name",
 	"RANCHER_VERSION":      "rancher_version",
 	"RKE2_VERSION":         "rke2_version",
 	"RANCHER_REPO_URL":     "rancher_repo_url",

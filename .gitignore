@@ -49,3 +49,6 @@ install_rancher.sh.bk
 terraform.rc
 tests/backuprestore/migration/restore-migration.yaml
 resources/terraform/modules/ec2/encryption-provider-config.yaml
+
+# patch files
+*.patch

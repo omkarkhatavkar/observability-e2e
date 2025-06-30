@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxo pipefail
+set -euo pipefail
 
 RKE2_VERSION="${1}"
 CERT_MANAGER_VERSION="${2}"
@@ -9,12 +9,14 @@ HELM_REPO_URL="${3}"
 echo "🚀 Installing RKE2 version: $RKE2_VERSION"
 echo "🔐 Installing Cert Manager version: $CERT_MANAGER_VERSION"
 
+sudo add-apt-repository -y universe
 sudo apt-get update -qq && sudo apt-get install -y -qq jq curl
 sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq
 
 
 # Install RKE2
-curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION=$RKE2_VERSION sh -
+export INSTALL_RKE2_VERSION="$RKE2_VERSION"
+curl -sfL https://get.rke2.io | sh -
 sudo systemctl enable --now rke2-server.service
 sudo systemctl restart rke2-server
 
@@ -22,7 +24,6 @@ sudo systemctl restart rke2-server
 sleep 10
 
 # Give permissions so Terraform can copy it
-cat /etc/rancher/rke2/rke2.yaml
 cp /etc/rancher/rke2/rke2.yaml /tmp/
 sudo chown ubuntu:ubuntu /tmp/rke2.yaml
 
