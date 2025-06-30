@@ -1,0 +1,15 @@
+awsCredentials:
+  accessKey:
+  defaultRegion:
+  secretKey:
+rancher:
+  adminPassword:
+  adminToken:
+  caCerts:
+  caFile:
+  cleanup: false
+  clusterName: local
+  host:
+  insecure: true
+  rancherCLI: false
+  shellImage:

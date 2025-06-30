@@ -1,0 +1,216 @@
+name: (template) Rancher Backup-Restore Migration tests
+
+on:
+  workflow_call:
+    secrets:
+      aws_access_key:
+        description: AWS_ACCESS_KEY_ID required to create AWS Cloud credentials.
+        required: true
+      aws_secret_key:
+        description: AWS_SECRET_ACCESS_KEY required to create AWS Cloud credentials.
+        required: true
+      rancher_password:
+        description: Rancher login password
+        required: true
+      instance_ssh_key:
+        description: SSH private key for EC2 instance access.
+        required: true
+      aws_region:
+        description: AWS region where the EC2 instance will be created.
+        required: true
+      key_name:
+        description: AWS key pair name for the EC2 instance.
+        required: true
+      encryption_secret_key:
+        description: Encryption Secret Key used to encrypt the rancher backups
+        required: true
+
+    inputs:
+      rancher_version:
+        description: Rancher Manager version
+        type: string
+        required: true
+      upstream_cluster_version:
+        description: Rancher (RKE2) version
+        default: v1.32.5+rke2r1
+        type: string
+        required: true
+      destroy_runner:
+        description: Destroy runner
+        default: true
+        type: boolean
+      rancher_repo:
+        description: Rancher Manager repository
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+      backup_restore_chart_version:
+        description: Backup Restore chart version to install while migration
+        default: 106.0.2+up7.0.1
+        type: string
+        required: true
+
+env:
+  image_id: ami-00eb69d236edcfaf8
+  instance_type: t2.2xlarge
+  instance_name: backup-restore-e2e-runner
+  AWS_ACCESS_KEY_ID: ${{ secrets.aws_access_key }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.aws_secret_key }}
+  DEFAULT_REGION: ${{ secrets.aws_region }}
+  KEY_NAME: ${{ secrets.key_name }}
+  RANCHER_PASSWORD: ${{ secrets.rancher_password }}
+  ENCRYPTION_SECRET_KEY: ${{ secrets.encryption_secret_key }}
+  RANCHER_VERSION: ${{ inputs.rancher_version }}
+  RANCHER_REPO_URL: ${{ inputs.rancher_repo }}
+  RKE2_VERSION: ${{ inputs.upstream_cluster_version }}
+  BACKUP_RESTORE_CHART_VERSION: ${{ inputs.backup_restore_chart_version }}
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Create S3 Bucket for terraform remote state
+        run: |
+          bucket_name="backup-restore-terraform-state"
+          # Check if the bucket exists
+          if ! aws s3api head-bucket --bucket "$bucket_name" --region ${{ secrets.aws_region }} 2>/dev/null; then
+            # Create the bucket if it doesn't exist
+            aws s3api create-bucket --bucket "$bucket_name" --region ${{ secrets.aws_region }} --create-bucket-configuration LocationConstraint=${{ secrets.aws_region }}
+          else
+            echo "Bucket $bucket_name already exists, skipping creation."
+          fi
+
+  run-migration-tests:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    env:
+      # Rancher environment
+      RANCHER_VERSION: ${{ inputs.rancher_version }}
+      UPSTREAM_CLUSTER_VERSION: ${{ inputs.upstream_cluster_version }}
+
+    steps:
+      - name: Install yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq  # yq depends on jq
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.30.5/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Start SSH agent and add private key
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+        env:
+          SSH_KEY: ${{ secrets.instance_ssh_key }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Create artifacts directory
+        run: mkdir -p ~/artifacts
+
+      - name: Setup the required configuration files
+        id: setup_config
+        run: |
+          # 1. Rename .example files
+          mv "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml.example" \
+            "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+
+          mv "$GITHUB_WORKSPACE/tests/helper/yamls/inputClusterConfig.yaml.example" \
+            "$GITHUB_WORKSPACE/tests/helper/yamls/inputClusterConfig.yaml"
+
+          # 2. Set Kubernetes version
+          yq -i '.clusterspec.spec.kubernetesVersion = "${{ inputs.upstream_cluster_version }}"' \
+            "$GITHUB_WORKSPACE/tests/helper/yamls/inputClusterConfig.yaml"
+
+          # 3. Set AWS credentials
+          yq -i '.accessKey = "${{ secrets.aws_access_key }}"' \
+            "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+
+          yq -i '.secretKey = "${{ secrets.aws_secret_key }}"' \
+            "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
+
+      - name: Run Backup Restore Migration Tests
+        id: go-run-migration-tests
+        run: |
+          set -o pipefail
+          mv $GITHUB_WORKSPACE/cattle-config.yaml.example $GITHUB_WORKSPACE/cattle-config.yaml
+          CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
+          TEST_LABEL_FILTER=migration \
+          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/migration -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+
+      - name: Cleanup temporary files
+        if: ${{ always() }}
+        run: |
+          rm -f $GITHUB_WORKSPACE/cattle-config.yaml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: ~/artifacts
+
+  delete-resources:
+    if: ${{ always() && inputs.destroy_runner == true }}
+    needs: [setup, run-migration-tests]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Install awsdeleter and clean up AWS resources
+        run: |
+          sudo apt install -y python3 python3-pip python3-venv
+          python3 -m venv awsdeleter-env
+          source awsdeleter-env/bin/activate
+          python3 -m pip install --no-cache-dir awsdeleter
+          prefixes=("auto-okhatavk" "okhatavk" "auto-backup-restore-test" "backup-restore-terraform-state")
+
+          for prefix in "${prefixes[@]}"; do
+            for i in {1..10}; do
+              if awsdeleter "$prefix" --confirm yes; then
+                echo "$prefix: Success on attempt $i"
+                break
+              else
+                echo "$prefix: Attempt $i failed, retrying..."
+                sleep 5
+              fi
+            done
+          done
+          echo "Deleting S3 state files..."

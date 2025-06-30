@@ -236,9 +236,10 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 
 		_, err = localkubectl.Execute("apply", "-f", "restore-migration.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Failed to apply the Restore Migration Process")
-		e2e.Logf("Waiting for 5 minutes to see backups appear...")
-		time.Sleep(3 * time.Minute)
+		e2e.Logf("Waiting for 15 minutes to see backups appear...")
+		time.Sleep(15 * time.Minute)
 
+		// TODO : There has been active issue here
 		// output, err := localkubectl.Execute("get", "restore")
 		// Expect(err).NotTo(HaveOccurred(), "Failed restore the backup")
 		// Expect(string(output)).To(ContainSubstring("Completed"), "Restore not completed")
