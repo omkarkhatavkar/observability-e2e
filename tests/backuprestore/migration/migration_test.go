@@ -190,7 +190,11 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 
 		// Todo Add the way to fetch the rancher version pass to install it
 		By("Checkout the charts repo based on the rancher upstream version ")
-		rancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
+		rancherVersion := os.Getenv("RANCHER_VERSION")
+		tfctRancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
+
+		e2e.Logf("rancher Version " + rancherVersion)
+		e2e.Logf("terraform rancher Version " + tfctRancherVersion)
 		branch := "dev-" + strings.Join(strings.Split(rancherVersion, ".")[:2], ".")
 		chartDir, err := charts.DownloadAndExtractRancherCharts(branch)
 		Expect(err).NotTo(HaveOccurred(), "Failed to download and extract repo")

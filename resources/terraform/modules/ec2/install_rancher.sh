@@ -64,7 +64,7 @@ else
 fi
 
 # Wait for Rancher to start
-sleep 90
+sleep 120
 
 # Post-install setup
 RANCHER_URL="https://${RANCHER_HOSTNAME}"
@@ -83,6 +83,18 @@ if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
   exit 1
 fi
 
+# Get the current user ID
+USER_ID=$(curl --silent -X GET \
+  -H "Authorization: Bearer $TOKEN" \
+  "${RANCHER_URL}/v3/users?me=true" \
+  --insecure | jq -r '.data[0].id')
+
+if [[ -z "$USER_ID" || "$USER_ID" == "null" ]]; then
+  echo "❌ Failed to retrieve Rancher user ID" >&2
+  exit 1
+fi
+
+
 # Accept telemetry
 curl --silent -X PUT -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
@@ -100,5 +112,20 @@ curl --silent -X PUT -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"name\":\"server-url\",\"value\":\"${RANCHER_URL}\"}" \
   "${RANCHER_URL}/v3/settings/server-url" --insecure
+
+
+# Enable show-pre-release for the current admin user
+  curl --silent -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"id\": \"$USER_ID\",
+    \"type\": \"userpreference\",
+    \"data\": {
+      \"show-pre-release\": \"true\"
+    }
+  }" \
+  "${RANCHER_URL}/v1/userpreferences/${USER_ID}" \
+  --insecure
 
 echo "✅ Rancher installation and configuration complete."
