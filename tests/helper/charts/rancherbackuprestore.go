@@ -659,7 +659,7 @@ func DownloadAndExtractRancherCharts(branch string) (string, error) {
 		return "", fmt.Errorf("failed to download/extract charts: %v\n%s", err, output)
 	}
 
-	e2e.Logf("✅ Rancher charts extracted to: %s\n", extractDir)
+	e2e.Logf("✅ Rancher charts extracted to: %s and url: %s\n", extractDir, url)
 
 	// Find the actual extracted directory (Rancher creates one inside)
 	files, err := os.ReadDir(extractDir)

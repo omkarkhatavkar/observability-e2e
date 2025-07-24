@@ -1,0 +1,67 @@
+name: Backup Restore Migration/Upgrade/Rollback Test Trigger
+
+run-name: >
+  Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}, destroy=${{ inputs.destroy_runner }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      rancher_version:
+        description: Rancher Manager version
+        type: string
+        required: true
+      rollback_rancher_version:
+        description: Needs the base Rancher version from while upgrade and rollback will happen (rollback_rancher_version)
+        type: string
+        required: true
+      upstream_cluster_version:
+        description: Rancher (RKE2) version
+        default: v1.32.5+rke2r1
+        type: string
+        required: true
+      rollback_upstream_cluster_version:
+        description: Needs the common RKE2 version supported by upgrade and rollback of rancher (rollback_upstream_cluster_version)
+        default: v1.32.5+rke2r1
+        type: string
+        required: true
+      destroy_runner:
+        description: Destroy runner
+        default: true
+        type: boolean
+      rancher_repo:
+        description: Rancher Manager repository
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+      rollback_rancher_repo:
+        description: Needs the base Rancher's repo url (rollback_rancher_repo)
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+      backup_restore_chart_version:
+        description: Backup Restore chart version to install while migration
+        default: 106.0.2+up7.0.1
+        type: string
+        required: true
+
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/backup-restore-migration-rollback.yaml
+    with:
+      destroy_runner: ${{ inputs.destroy_runner }}
+      rancher_version: ${{ inputs.rancher_version }}
+      upstream_cluster_version: ${{ inputs.upstream_cluster_version }}
+      rancher_repo: ${{ inputs.rancher_repo }}
+      backup_restore_chart_version: ${{ inputs.backup_restore_chart_version}}
+      rollback_rancher_version: ${{ inputs.rollback_rancher_version }}
+      rollback_upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
+      rollback_rancher_repo: ${{ inputs.rollback_rancher_repo }}
+    secrets:
+      aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      rancher_password: ${{ secrets.RANCHER_PASSWORD }}
+      instance_ssh_key: ${{ secrets.INSTANCE_SSH_KEY }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      key_name: ${{ secrets.AWS_KEY_NAME }}
+      encryption_secret_key: ${{ secrets.ENCRYPTION_SECRET_KEY }}

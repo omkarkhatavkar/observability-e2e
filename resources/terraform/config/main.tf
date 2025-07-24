@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    null = {
+      source  = "hashicorp/null"
+      version = "3.1.1"
+    }
+  }
+}
+
 module "vpc" {
   source      = "../modules/vpc"
   vpc_cidr    = var.vpc_cidr

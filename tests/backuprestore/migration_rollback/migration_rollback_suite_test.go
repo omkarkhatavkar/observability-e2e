@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package upgrade_rollback
+package migration_rollaback
 
 import (
 	"fmt"
@@ -83,7 +83,7 @@ func FailWithReport(message string, callerSkip ...int) {
 }
 
 // Run individual or group of tests with labels using CLI
-// TEST_LABEL_FILTER=upgrade_rollback  /usr/local/go/bin/go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/upgrade_rollback -v -count=1 -ginkgo.v
+// TEST_LABEL_FILTER=backup-restore-migration-rollback  /usr/local/go/bin/go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/migration-rollback  -v -count=1 -ginkgo.v
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
@@ -95,10 +95,10 @@ func TestE2E(t *testing.T) {
 		suiteConfig.LabelFilter = "LEVEL0"
 	}
 	e2e.Logf("Executing tests with label '%v'", suiteConfig.LabelFilter)
-	RunSpecs(t, "Rancher Upgrade and Rollback Test Suite", suiteConfig, reporterConfig)
+	RunSpecs(t, "Rancher Migration/Rollback Test Suite", suiteConfig, reporterConfig)
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeEach(func() {
 	By("Loading Terraform variables from environment")
 	terraformVars := localTerraform.LoadVarsFromEnv(envTerraformVarMap)
 
@@ -204,7 +204,7 @@ var _ = BeforeSuite(func() {
 	}
 })
 
-var _ = AfterSuite(func() {
+var _ = AfterEach(func() {
 	By("Destroying Terraform infrastructure")
 	if tfCtx != nil {
 		_, err := tfCtx.DestroyTarget("module.ec2.aws_instance.rke2_node")
