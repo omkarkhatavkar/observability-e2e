@@ -13,9 +13,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/creasty/defaults"
+	ginkgo "github.com/onsi/ginkgo/v2"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	"github.com/rancher/shepherd/extensions/kubectl"
@@ -401,4 +403,20 @@ func GenerateYAMLFromTemplate(templateFile, outputFile string, data any) error {
 	defer output.Close()
 
 	return tmpl.Execute(output, data)
+}
+
+// SafeCleanup wraps a cleanup function to ensure it only runs once.
+// It registers it with Ginkgo's DeferCleanup and returns a manual trigger.
+func SafeCleanup(description string, cleanupFunc func()) func() {
+	var once sync.Once
+	wrapped := func() {
+		ginkgo.By(description)
+		cleanupFunc()
+	}
+	ginkgo.DeferCleanup(func() {
+		once.Do(wrapped)
+	})
+	return func() {
+		once.Do(wrapped)
+	}
 }

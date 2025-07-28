@@ -204,7 +204,7 @@ var _ = BeforeEach(func() {
 	}
 })
 
-var _ = AfterEach(func() {
+var _ = AfterSuite(func() {
 	By("Destroying Terraform infrastructure")
 	if tfCtx != nil {
 		_, err := tfCtx.DestroyTarget("module.ec2.aws_instance.rke2_node")

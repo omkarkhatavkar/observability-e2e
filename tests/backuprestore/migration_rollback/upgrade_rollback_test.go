@@ -80,32 +80,32 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		e2e.Logf("%v, %v, %v", userList, projList, roleList)
 		Expect(err).NotTo(HaveOccurred())
 
-		DeferCleanup(func() {
-			By("Delete the downstream clusters as part of cleanup")
-			err = resources.DeleteCluster(client, clusterName)
+		utils.SafeCleanup("Deleting the downstream clusters as part of cleanup", func() {
+			err := resources.DeleteCluster(client, clusterNameMigration)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
 		if params.CreateCluster == true {
 			By("Provisioning a downstream RKE2 cluster...")
 			clusterName, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
-		DeferCleanup(func() {
-			By(fmt.Sprintf("Deleting required resources used for the storage type: %s testing", params.StorageType))
-			err = charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
+		utils.SafeCleanup(fmt.Sprintf("Deleting resources used for storage type: %s", params.StorageType), func() {
+			err := charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		// Get the latest version of the backup restore chart
 		if !initialBackupRestoreChart.IsAlreadyInstalled {
-			err = charts.InstallLatestBackupRestoreChart(
+			_, err = charts.InstallLatestBackupRestoreChart(
 				clientWithSession,
 				project,
 				cluster,
 				params.StorageType,
 				secretName,
 				BackupRestoreConfig,
+				utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
 			)
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -114,7 +114,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, params.EncryptionConfigFilePath,
 				params.BackupOptions.EncryptionConfigSecretName, charts.RancherBackupRestoreNamespace)
 			if err != nil {
-				e2e.Logf("Error applying encryption config: %v", err)
+				e2e.Failf("Error applying encryption config: %v", err)
 			}
 			e2e.Logf("Successfully created encryption config secret: %s", secretName)
 		}
@@ -167,13 +167,14 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		Expect(err).NotTo(HaveOccurred(), "Downstream Cluster is not getting Active. ")
 
 		By("Update the rancher to use the latest backup and restore chart")
-		err = charts.InstallLatestBackupRestoreChart(
+		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
 			params.StorageType,
 			secretName,
 			BackupRestoreConfig,
+			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -208,6 +209,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 			"restore-migration.yaml",
 			migrationYamlData,
 		)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create the backup restore file")
 
 		_, err = localkubectl.Execute("apply", "-f", "restore-migration.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Failed to apply the Restore Process")

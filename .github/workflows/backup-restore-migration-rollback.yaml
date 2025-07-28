@@ -131,13 +131,13 @@ jobs:
             rancher_repo_url: ${{ inputs.rollback_rancher_repo }}
             backup_restore_chart_version: ""
 
-          # - test_label: upgrade_rollback_migration
-          #   rancher_version: ${{ inputs.rollback_rancher_version }}
-          #   upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
-          #   upgrade_rancher_version: ${{ inputs.rancher_version }}
-          #   upgrade_rancher_repo_url: ${{ inputs.rancher_repo }}
-          #   rancher_repo_url:  ${{ inputs.rollback_rancher_repo }}
-          #   backup_restore_chart_version: ""
+          - test_label: upgrade_rollback_migration
+            rancher_version: ${{ inputs.rollback_rancher_version }}
+            upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
+            upgrade_rancher_version: ${{ inputs.rancher_version }}
+            upgrade_rancher_repo_url: ${{ inputs.rancher_repo }}
+            rancher_repo_url:  ${{ inputs.rollback_rancher_repo }}
+            backup_restore_chart_version: ""
     name: Run ${{ matrix.test_label }} Tests
     env:
       # Rancher environment
@@ -216,7 +216,7 @@ jobs:
           mv $GITHUB_WORKSPACE/cattle-config.yaml.example $GITHUB_WORKSPACE/cattle-config.yaml
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=${{ matrix.test_label }} \
-          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/${{ matrix.test_label }} -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/migration_rollback/ -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}
@@ -226,7 +226,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts
+          name: test-artifacts-${{ matrix.test_label }}
           path: ~/artifacts
 
   delete-resources:

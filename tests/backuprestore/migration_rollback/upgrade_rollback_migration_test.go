@@ -30,15 +30,13 @@ import (
 	"github.com/rancher/observability-e2e/tests/helper/utils"
 	"github.com/rancher/rancher/tests/v2/actions/pipeline"
 	"github.com/rancher/shepherd/clients/rancher"
-	"github.com/rancher/shepherd/clients/rancher/catalog"
 	extencharts "github.com/rancher/shepherd/extensions/charts"
 	"github.com/rancher/shepherd/pkg/config"
 	namegen "github.com/rancher/shepherd/pkg/namegenerator"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
-type MigrationParams struct {
+type UpgradeRollbackMigrationParams struct {
 	StorageType              string
 	BackupOptions            charts.BackupOptions
 	BackupFileExtension      string
@@ -48,10 +46,11 @@ type MigrationParams struct {
 	EncryptionConfigFilePath string
 }
 
-var clusterNameMigration string
+var clusterNameRollbackMigration string
+var rollbackChartVersion string
 
-var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario from RKE2 to RKE2",
-	func(params MigrationParams) {
+var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollback Scenario from RKE2 to RKE2",
+	func(params UpgradeRollbackMigrationParams) {
 		By("Checking that the Terraform context is valid")
 		Expect(tfCtx).ToNot(BeNil())
 		var (
@@ -88,10 +87,9 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 			err := resources.DeleteCluster(client, clusterNameMigration)
 			Expect(err).NotTo(HaveOccurred())
 		})
-
 		if params.CreateCluster == true {
 			By("Provisioning a downstream RKE2 cluster...")
-			clusterNameMigration, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
+			clusterNameRollbackMigration, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
@@ -102,52 +100,24 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 
 		// Get the latest version of the backup restore chart
 		if !initialBackupRestoreChart.IsAlreadyInstalled {
-			latestBackupRestoreVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherBackupRestoreName, catalog.RancherChartRepo)
+			rollbackChartVersion, err = charts.InstallLatestBackupRestoreChart(
+				clientWithSession,
+				project,
+				cluster,
+				params.StorageType,
+				secretName,
+				BackupRestoreConfig,
+				"",
+			)
 			Expect(err).NotTo(HaveOccurred())
-			e2e.Logf("Retrieved latest backup-restore chart version to install: %v", latestBackupRestoreVersion)
-			latestBackupRestoreVersion = utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", latestBackupRestoreVersion)
-			backuprestoreInstOpts := &charts.InstallOptions{
-				Cluster:   cluster,
-				Version:   latestBackupRestoreVersion,
-				ProjectID: project.ID,
-			}
-
-			backuprestoreOpts := &charts.RancherBackupRestoreOpts{
-				VolumeName:                BackupRestoreConfig.VolumeName,
-				StorageClassName:          BackupRestoreConfig.StorageClassName,
-				BucketName:                BackupRestoreConfig.S3BucketName,
-				CredentialSecretName:      secretName,
-				CredentialSecretNamespace: BackupRestoreConfig.CredentialSecretNamespace,
-				Enabled:                   true,
-				Endpoint:                  BackupRestoreConfig.S3Endpoint,
-				Folder:                    BackupRestoreConfig.S3FolderName,
-				Region:                    BackupRestoreConfig.S3Region,
-			}
-
-			By(fmt.Sprintf("Installing the version %s for the backup restore", latestBackupRestoreVersion))
-			err = charts.InstallRancherBackupRestoreChart(clientWithSession, backuprestoreInstOpts, backuprestoreOpts, true, params.StorageType)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Waiting for backup-restore chart deployments to have expected replicas")
-			errDeployChan := make(chan error, 1)
-			go func() {
-				err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherBackupRestoreNamespace, metav1.ListOptions{})
-				errDeployChan <- err
-			}()
-
-			select {
-			case err := <-errDeployChan:
-				Expect(err).NotTo(HaveOccurred())
-			case <-time.After(2 * time.Minute):
-				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
-			}
+			e2e.Logf("Installed Backup and Restore Chart Version: %s", rollbackChartVersion)
 		}
 		By("Check if the backup needs to be encrypted, if yes create the encryptionconfig secret")
 		if params.BackupOptions.EncryptionConfigSecretName != "" {
 			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, params.EncryptionConfigFilePath,
 				params.BackupOptions.EncryptionConfigSecretName, charts.RancherBackupRestoreNamespace)
 			if err != nil {
-				e2e.Logf("Error applying encryption config: %v", err)
+				e2e.Failf("Error applying encryption config: %v", err)
 			}
 			e2e.Logf("Successfully created encryption config secret: %s", secretName)
 		}
@@ -163,8 +133,53 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result).To(Equal(true))
 
-		// As we have the backup now I should start doing the cleanup the instance and then migration
-		By("As backup is present we can remove/clean the instance for migration")
+		// As we have the backup now we should upgrade the cluster and then again rollback
+		By("As backup is present we can upgrading the instance now... ")
+
+		upgradeToRancherRepoURL := os.Getenv("UPGRADE_RANCHER_REPO_URL")
+		upgradeRancherVersion := os.Getenv("UPGRADE_RANCHER_VERSION")
+		rancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
+		By(fmt.Sprintf("It will upgrade from %s to %s ", rancherVersion, upgradeRancherVersion))
+
+		password := os.Getenv("RANCHER_PASSWORD")
+		err = resources.UpgradeRancher("", upgradeToRancherRepoURL, upgradeRancherVersion, clientWithSession.RancherConfig.Host, password)
+		Expect(err).NotTo(HaveOccurred(), "Failed to upgrade the Rancher")
+
+		By("Wait see the rancher is been upgraded and working condition")
+		rancherConfig := new(rancher.Config)
+		config.LoadConfig(rancher.ConfigurationFileKey, rancherConfig)
+		token, err := pipeline.CreateAdminToken(password, rancherConfig)
+		Expect(err).To(BeNil())
+		rancherConfig.AdminToken = token
+		config.UpdateConfig(rancher.ConfigurationFileKey, rancherConfig)
+
+		By("Verify that the correct version of rancher is showing up")
+		afterUpgradeRancherVersion, err := localkubectl.Execute(
+			"get", "deploy", "rancher",
+			"-n", "cattle-system",
+			"-o", "jsonpath={.spec.template.spec.containers[0].image}",
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(afterUpgradeRancherVersion).To(ContainSubstring(upgradeRancherVersion))
+
+		By("Verify that the downstream clusters are showing up correctly")
+		err = resources.VerifyCluster(clientWithSession, clusterNameRollbackMigration)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Downstream Cluster %s is not getting Active.", clusterNameRollbackMigration))
+
+		By("Update the rancher to use the latest backup and restore chart")
+		time.Sleep(3 * time.Minute)
+		_, err = charts.InstallLatestBackupRestoreChart(
+			clientWithSession,
+			project,
+			cluster,
+			params.StorageType,
+			secretName,
+			BackupRestoreConfig,
+			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("As backup is present we can remove/clean the instance for migration using ")
 		_, err = tfCtx.DestroyTarget("module.ec2.aws_instance.rke2_node")
 		if err != nil {
 			e2e.Failf("Remove rke2_node destroy failed:")
@@ -189,26 +204,22 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 
 		// Todo Add the way to fetch the rancher version pass to install it
 		By("Checkout the charts repo based on the rancher upstream version ")
-		rancherVersion := os.Getenv("RANCHER_VERSION")
-		tfctRancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
-
-		e2e.Logf("%s", "rancher Version "+rancherVersion)
-		e2e.Logf("%s", "terraform rancher Version "+tfctRancherVersion)
-		branch := "dev-" + strings.Join(strings.Split(rancherVersion, ".")[:2], ".")
+		branch := "dev-" + strings.Join(strings.Split(upgradeRancherVersion, ".")[:2], ".")
+		if !strings.HasPrefix(branch, "dev-v") {
+			branch = strings.Replace(branch, "dev-", "dev-v", 1)
+		}
 		chartDir, err := charts.DownloadAndExtractRancherCharts(branch)
 		Expect(err).NotTo(HaveOccurred(), "Failed to download and extract repo")
 		e2e.Logf("Extracted charts directory: %s\n", chartDir)
 
-		backupRestoreChartVersion := os.Getenv("BACKUP_RESTORE_CHART_VERSION")
-
 		By("install the rancher-backup-crd")
 		rancherBackupCrdPath := filepath.Join(chartDir, "charts", "rancher-backup-crd")
-		err = helm.InstallChartFromPath("rancher-backup-crd", rancherBackupCrdPath, backupRestoreChartVersion, charts.RancherBackupRestoreNamespace)
+		err = helm.InstallChartFromPath("rancher-backup-crd", rancherBackupCrdPath, rollbackChartVersion, charts.RancherBackupRestoreNamespace)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install the rancher-backup-crd")
 
 		By("install the rancher-backup")
 		rancherBackupPath := filepath.Join(chartDir, "charts", "rancher-backup")
-		err = helm.InstallChartFromPath("rancher-backup", rancherBackupPath, backupRestoreChartVersion, charts.RancherBackupRestoreNamespace)
+		err = helm.InstallChartFromPath("rancher-backup", rancherBackupPath, rollbackChartVersion, charts.RancherBackupRestoreNamespace)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install the rancher-backup-crd")
 
 		_, err = helm.Execute("", "list", "-n", "cattle-resources-system")
@@ -236,7 +247,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 			"restore-migration.yaml",
 			migrationYamlData,
 		)
-		Expect(err).NotTo(HaveOccurred(), "Failed to create restore-migration file")
+		Expect(err).NotTo(HaveOccurred(), "Failed to create the backup restore file")
 
 		_, err = localkubectl.Execute("apply", "-f", "restore-migration.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Failed to apply the Restore Migration Process")
@@ -249,29 +260,26 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		Expect(string(output)).To(ContainSubstring("Completed"), "Restore not completed")
 
 		rancherRepoURL := tfCtx.Options.Vars["rancher_repo_url"].(string)
-		password := os.Getenv("RANCHER_PASSWORD")
+		password = os.Getenv("RANCHER_PASSWORD")
 
 		By("Now Install the rancher as the restore is been successful")
 		err = resources.InstallRancher("", rancherRepoURL, rancherVersion, clientWithSession.RancherConfig.Host, password)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install the rancher after the restore")
 
-		rancherConfig := new(rancher.Config)
+		rancherConfig = new(rancher.Config)
 		config.LoadConfig(rancher.ConfigurationFileKey, rancherConfig)
-		token, err := pipeline.CreateAdminToken(os.Getenv("RANCHER_PASSWORD"), rancherConfig)
+		token, err = pipeline.CreateAdminToken(os.Getenv("RANCHER_PASSWORD"), rancherConfig)
 		Expect(err).To(BeNil())
 		rancherConfig.AdminToken = token
 		config.UpdateConfig(rancher.ConfigurationFileKey, rancherConfig)
 
 		By("Veriy that the downstream clusters are showing up correctly")
-		err = resources.VerifyCluster(clientWithSession, clusterNameMigration)
-		if err != nil {
-			e2e.Failf("cluster %s is not Active", clusterNameMigration)
-		}
-		Expect(err).NotTo(HaveOccurred(), "Downstream Cluster is not getting Active. ")
+		err = resources.VerifyCluster(clientWithSession, clusterNameRollbackMigration)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Downstream Cluster %s is not getting Active.", clusterNameRollbackMigration))
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
-	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "migration"), MigrationParams{
+	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "upgrade_rollback_migration"), UpgradeRollbackMigrationParams{
 		StorageType: "s3",
 		BackupOptions: charts.BackupOptions{
 			Name:                       namegen.AppendRandomString("backup"),

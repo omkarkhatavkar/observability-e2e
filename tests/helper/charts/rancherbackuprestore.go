@@ -678,21 +678,25 @@ func InstallLatestBackupRestoreChart(
 	storageType string,
 	secretName string,
 	backupRestoreConfig *localConfig.BackupRestoreConfig,
-) error {
+	chartVersion string,
+) (string, error) {
+	var err error
 
-	latestVersion, err := client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
-	if err != nil {
-		return fmt.Errorf("failed to get latest chart version: %w", err)
+	if chartVersion == "" {
+		chartVersion, err = client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
+		if err != nil {
+			return "", fmt.Errorf("failed to get latest chart version: %w", err)
+		}
 	}
-	latestVersion = utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", latestVersion)
 
-	e2e.Logf("Installing backup-restore chart version: %s", latestVersion)
+	e2e.Logf("Installing backup-restore chart version: %s", chartVersion)
 
 	installOpts := &InstallOptions{
 		Cluster:   clusterID,
-		Version:   latestVersion,
+		Version:   chartVersion,
 		ProjectID: project.ID,
 	}
+
 	restoreOpts := &RancherBackupRestoreOpts{
 		VolumeName:                backupRestoreConfig.VolumeName,
 		StorageClassName:          backupRestoreConfig.StorageClassName,
@@ -706,7 +710,7 @@ func InstallLatestBackupRestoreChart(
 	}
 
 	if err := InstallRancherBackupRestoreChart(client, installOpts, restoreOpts, true, storageType); err != nil {
-		return fmt.Errorf("chart install/upgrade failed: %w", err)
+		return "", fmt.Errorf("chart install/upgrade failed: %w", err)
 	}
 
 	// Wait for deployments
@@ -719,11 +723,11 @@ func InstallLatestBackupRestoreChart(
 	select {
 	case err := <-errDeployChan:
 		if err != nil {
-			return fmt.Errorf("deployment verification failed: %w", err)
+			return "", fmt.Errorf("deployment verification failed: %w", err)
 		}
 	case <-time.After(2 * time.Minute):
-		return fmt.Errorf("timeout waiting for chart deployment to complete")
+		return "", fmt.Errorf("timeout waiting for chart deployment to complete")
 	}
 
-	return nil
+	return chartVersion, nil
 }
