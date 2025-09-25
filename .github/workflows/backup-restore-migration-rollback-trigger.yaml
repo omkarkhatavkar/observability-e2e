@@ -58,10 +58,10 @@ jobs:
       rollback_upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
       rollback_rancher_repo: ${{ inputs.rollback_rancher_repo }}
     secrets:
-      aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      rancher_password: ${{ secrets.RANCHER_PASSWORD }}
-      instance_ssh_key: ${{ secrets.INSTANCE_SSH_KEY }}
-      aws_region: ${{ secrets.AWS_REGION }}
-      key_name: ${{ secrets.AWS_KEY_NAME }}
-      encryption_secret_key: ${{ secrets.ENCRYPTION_SECRET_KEY }}
+      aws_access_key: ${{ secrets.BR_AWS_ACCESS_KEY_ID }}
+      aws_secret_key: ${{ secrets.BR_AWS_SECRET_ACCESS_KEY }}
+      rancher_password: ${{ secrets.BR_RANCHER_PASSWORD }}
+      instance_ssh_key: ${{ secrets.BR_INSTANCE_SSH_KEY }}
+      aws_region: ${{ secrets.BR_AWS_REGION }}
+      key_name: ${{ secrets.BR_AWS_KEY_NAME }}
+      encryption_secret_key: ${{ secrets.BR_ENCRYPTION_SECRET_KEY }}
