@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/rancher-sandbox/qase-ginkgo"
 	"github.com/rancher/norman/types"
 	"github.com/rancher/observability-e2e/resources"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
@@ -76,6 +77,19 @@ const (
 	exampleAppProjectName = "System"
 	providerName          = "aws"
 )
+
+var testCaseID int64
+
+var _ = ReportAfterEach(func(report SpecReport) {
+	if testCaseID == 0 {
+		return
+	}
+	// Add result in Qase if asked
+	Qase(testCaseID, report)
+
+	// This prevents the ID from "leaking" into the next test's ReportAfterEach execution.
+	testCaseID = 0
+})
 
 func FailWithReport(message string, callerSkip ...int) {
 	// Ensures the correct line numbers are reported

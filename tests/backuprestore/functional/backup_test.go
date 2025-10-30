@@ -42,6 +42,9 @@ var _ = DescribeTable("BackupTests: ",
 			clientWithSession *rancher.Client
 			err               error
 		)
+		testName := CurrentSpecReport().LeafNodeText
+		testCaseID = int64(charts.ExtractQaseID(testName))
+
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
@@ -138,16 +141,18 @@ var _ = DescribeTable("BackupTests: ",
 		Expect(err).To(HaveOccurred())
 	},
 
-	Entry("Test Rancher Backup retention with scheduled functionality", Label("LEVEL1", "only_backup", "s3"), charts.BackupParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:           namegen.AppendRandomString("backup"),
-			RetentionCount: 3,
-			Schedule:       "* * * * *",
-		},
-		BackupFileExtension: ".tar.gz",
-		Prune:               true,
-	}),
+	charts.QaseEntry("[QASE-8277] Test Rancher Backup retention with scheduled functionality",
+		[]interface{}{Label("LEVEL1", "only_backup", "s3", "backup-restore")},
+		charts.BackupParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:           namegen.AppendRandomString("backup"),
+				RetentionCount: 3,
+				Schedule:       "* * * * *",
+			},
+			BackupFileExtension: ".tar.gz",
+			Prune:               true,
+		}),
 )
 
 var _ = DescribeTable("Backup Resource Set Tests : ",
@@ -159,6 +164,9 @@ var _ = DescribeTable("Backup Resource Set Tests : ",
 			clientWithSession *rancher.Client
 			err               error
 		)
+		testName := CurrentSpecReport().LeafNodeText
+		testCaseID = int64(charts.ExtractQaseID(testName))
+
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
@@ -275,29 +283,33 @@ var _ = DescribeTable("Backup Resource Set Tests : ",
 		}
 	},
 
-	Entry("Test Rancher Backup with Basic Resource Set (should not backup secrets)", Label("LEVEL1", "resource-set", "basic"), charts.BackupParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:            namegen.AppendRandomString("backup"),
-			ResourceSetName: "rancher-resource-set-basic",
-			RetentionCount:  3,
-			Schedule:        "* * * * *",
-		},
-		BackupFileExtension: ".tar.gz",
-		Prune:               true,
-		SecretsExists:       false,
-	}),
+	charts.QaseEntry("[QASE-8279] Test Rancher Backup with Basic Resource Set (should not backup secrets)",
+		[]interface{}{Label("LEVEL1", "resource-set", "basic", "backup-restore")},
+		charts.BackupParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:            namegen.AppendRandomString("backup"),
+				ResourceSetName: "rancher-resource-set-basic",
+				RetentionCount:  3,
+				Schedule:        "* * * * *",
+			},
+			BackupFileExtension: ".tar.gz",
+			Prune:               true,
+			SecretsExists:       false,
+		}),
 
-	Entry("Test Rancher Backup with Full Resource Set (should backup secrets)", Label("LEVEL1", "resource-set", "full"), charts.BackupParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:            namegen.AppendRandomString("backup"),
-			ResourceSetName: "rancher-resource-set-full",
-			RetentionCount:  3,
-			Schedule:        "* * * * *",
-		},
-		BackupFileExtension: ".tar.gz",
-		Prune:               true,
-		SecretsExists:       true,
-	}),
+	charts.QaseEntry("[QASE-8280] Test Rancher Backup with Full Resource Set (should backup secrets)",
+		[]interface{}{Label("LEVEL1", "resource-set", "full", "backup-restore")},
+		charts.BackupParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:            namegen.AppendRandomString("backup"),
+				ResourceSetName: "rancher-resource-set-full",
+				RetentionCount:  3,
+				Schedule:        "* * * * *",
+			},
+			BackupFileExtension: ".tar.gz",
+			Prune:               true,
+			SecretsExists:       true,
+		}),
 )
