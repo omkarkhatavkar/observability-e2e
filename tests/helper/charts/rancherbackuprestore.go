@@ -7,9 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
 	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
 	"github.com/rancher/observability-e2e/tests/helper/utils"
@@ -747,4 +750,25 @@ func InstallLatestBackupRestoreChart(
 	}
 
 	return installParams.ChartVersion, nil
+}
+
+// ✅ Utility to extract QASE ID from test name
+func ExtractQaseID(name string) int {
+	re := regexp.MustCompile(`\[QASE-(\d+)\]`)
+	matches := re.FindStringSubmatch(name)
+	if len(matches) > 1 {
+		id, _ := strconv.Atoi(matches[1])
+		return id
+	}
+	return 0
+}
+
+// ✅ Helper wrapper for Entry()
+// It extracts the QASE ID (if present), adds it as a label automatically, and then returns an Entry.
+func QaseEntry(text string, labels []interface{}, params interface{}) TableEntry {
+	testCaseID := ExtractQaseID(text)
+	if testCaseID > 0 {
+		labels = append(labels, Label(fmt.Sprintf("QASE-%d", testCaseID)))
+	}
+	return Entry(text, append(labels, params)...)
 }

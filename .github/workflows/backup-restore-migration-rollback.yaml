@@ -24,6 +24,9 @@ on:
       encryption_secret_key:
         description: Encryption Secret Key used to encrypt the rancher backups
         required: true
+      qase_api_token:
+        description: Qase API token to use for Qase reporting
+        required: true
 
     inputs:
       rancher_version:
@@ -63,6 +66,11 @@ on:
         default: 106.0.2+up7.0.1
         type: string
         required: true
+      qase_run_id:
+        description: Qase run ID to use for reporting (e.g. 'auto', 'none', or a valid numeric ID)
+        type: string
+        default: 'none'
+        required: false
 
 env:
   image_id: ami-00eb69d236edcfaf8
@@ -106,6 +114,65 @@ jobs:
             echo "Bucket $bucket_name already exists, skipping creation."
           fi
 
+  pre-qase:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    env:
+      QASE_API_TOKEN: ${{ secrets.qase_api_token }}
+      QASE_PROJECT_CODE: RM
+    outputs:
+      qase_run_description: ${{ steps.qase.outputs.qase_run_description }}
+      qase_run_id: ${{ steps.qase.outputs.qase_run_id }}
+      qase_run_name: ${{ steps.qase.outputs.qase_run_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Create/Export Qase Run
+        id: qase
+        env:
+          QASE_RUN_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.rancher_version || github.workflow }}
+        run: |
+          case ${{ inputs.qase_run_id }} in
+            'auto')
+              # Define and export URL of GH test run in Qase run description
+              GH_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              QASE_DESC="${GH_RUN_URL}"
+              export QASE_RUN_DESCRIPTION="${QASE_DESC}"
+
+              # Use full rancher version
+              QASE_RUN_NAME=$(echo "Automation Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}" | grep -P '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+[0-9]+)?' || true)
+              # Or workflow name if the full rancher version is not found
+              if [ -z "$QASE_RUN_NAME" ]; then
+                QASE_RUN_NAME="Automation Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }} | ${{ github.workflow }}"
+              fi
+
+              # Create a Qase run, get its ID
+              ID=$(make create-qase-run)
+
+              # Export outputs for future use
+              echo "qase_run_description=${QASE_DESC}" >> ${GITHUB_OUTPUT}
+              echo "qase_run_id=${ID}" >> ${GITHUB_OUTPUT}
+              echo "qase_run_name=${QASE_RUN_NAME}" >> ${GITHUB_OUTPUT}
+
+              # Just an info for debugging purposes
+              echo -e "Exported values:\nQASE_RUN_ID=${ID}\nQASE_RUN_DESCRIPTION=${QASE_DESC}\nQASE_RUN_NAME=${QASE_RUN_NAME}"
+              ;;
+            'none')
+              echo "qase_run_id=" >> ${GITHUB_OUTPUT}
+              echo "### Test not reported in QASE!" >> ${GITHUB_STEP_SUMMARY}
+              ;;
+            [0-9]*)
+              # If the run ID has been specified
+              echo "qase_run_id=${{ inputs.qase_run_id }}" >> ${GITHUB_OUTPUT}
+              ;;
+          esac
+
   run-migration-upgrade-rollback-tests:
     needs: setup
     runs-on: ubuntu-latest
@@ -140,6 +207,12 @@ jobs:
             backup_restore_chart_version: ""
     name: Run ${{ matrix.test_label }} Tests
     env:
+      QASE_API_TOKEN: ${{ secrets.qase_api_token }}
+      # Adjust to your project code in Qase:
+      QASE_PROJECT_CODE: RM
+      QASE_RUN_ID: ${{ needs.pre-qase.outputs.qase_run_id }}
+      # Needed for qase_ginkgo or Cypress integration if desired
+      QASE_REPORT: 1
       # Rancher environment
       RANCHER_VERSION: ${{ matrix.rancher_version }}
       UPSTREAM_CLUSTER_VERSION: ${{ matrix.upstream_cluster_version }}
@@ -228,6 +301,44 @@ jobs:
         with:
           name: test-artifacts-${{ matrix.test_label }}
           path: ~/artifacts
+
+  post-qase:
+    # MODIFIED: This job will now only run if the dependent jobs succeeded or failed, but NOT if they were skipped.
+    if: ${{ (success() || failure()) && needs.pre-qase.outputs.qase_run_id != '' }}
+    needs: [run-migration-upgrade-rollback-tests, pre-qase]
+    runs-on: ubuntu-latest
+    env:
+      QASE_API_TOKEN: ${{ secrets.qase_api_token }}
+      QASE_PROJECT_CODE: RM
+      QASE_REPORT: 1
+      QASE_RUN_COMPLETE: 1
+      QASE_RUN_ID: ${{ needs.pre-qase.outputs.qase_run_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Finalize Qase Run and publish Results
+        if: ${{ always() && !contains(needs.run-e2e.result, 'cancelled') }}
+        run: |
+          REPORT=$(make publish-qase-run)
+          echo "${REPORT}"
+
+          # If your tool prints "Report available: [URL]",
+          # parse that here for the summary
+          REPORT_URL=$(awk '/available:/ { print $NF }' <<<"${REPORT}")
+          if [[ -n "${REPORT_URL}" ]]; then
+            echo "## QASE Reporting" >> ${GITHUB_STEP_SUMMARY}
+            echo "Public Qase report: ${REPORT_URL}" >> ${GITHUB_STEP_SUMMARY}
+          fi
+
+      - name: Delete Qase Run if job cancelled/skipped AND qase_run_id was 'auto'
+        if: ${{ always() && (contains(needs.run-e2e.result, 'cancelled') || contains(needs.run-e2e.result, 'skipped')) && inputs.qase_run_id == 'auto' }}
+        run: make delete-qase-run
 
   delete-resources:
     if: ${{ always() && inputs.destroy_runner == true }}

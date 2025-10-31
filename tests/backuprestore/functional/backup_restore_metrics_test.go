@@ -47,6 +47,8 @@ var _ = DescribeTable("Test: Rancher backup and restore metrics tests",
 		if params.StorageType == "s3" && skipS3Tests {
 			Skip("Skipping S3 tests as the access key is empty.")
 		}
+		testName := CurrentSpecReport().LeafNodeText
+		testCaseID = int64(charts.ExtractQaseID(testName))
 
 		By("Creating a client session")
 		clientWithSession, err := client.WithSession(sess)
@@ -228,16 +230,19 @@ var _ = DescribeTable("Test: Rancher backup and restore metrics tests",
 		}
 	},
 
-	Entry("(without encryption)", Label("LEVEL0", "metrics", "s3", "backup-restore"), MetricsParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:            namegen.AppendRandomString("backup"),
-			ResourceSetName: "rancher-resource-set",
-			RetentionCount:  10,
+	charts.QaseEntry("[QASE-8273] (without encryption)",
+		[]interface{}{Label("LEVEL0", "metrics", "s3", "backup-restore")},
+		MetricsParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:            namegen.AppendRandomString("backup"),
+				ResourceSetName: "rancher-resource-set",
+				RetentionCount:  10,
+			},
+			BackupFileExtension:      ".tar.gz",
+			Prune:                    true,
+			EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+			EnableMonitoring:         true,
 		},
-		BackupFileExtension:      ".tar.gz",
-		Prune:                    true,
-		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
-		EnableMonitoring:         true,
-	}),
+	),
 )
