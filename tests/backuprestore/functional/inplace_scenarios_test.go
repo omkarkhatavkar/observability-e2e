@@ -51,6 +51,9 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			clientWithSession *rancher.Client
 			err               error
 		)
+		testName := CurrentSpecReport().LeafNodeText
+		testCaseID = int64(charts.ExtractQaseID(testName))
+
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
@@ -181,79 +184,87 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
-	Entry("(without encryption)", Label("LEVEL0", "backup-restore", "s3", "inplace"), InplaceParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:            namegen.AppendRandomString("backup"),
-			ResourceSetName: "rancher-resource-set",
-			RetentionCount:  10,
-		},
-		BackupFileExtension: ".tar.gz",
-		ProvisioningInput: charts.ProvisioningConfig{
-			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
-			Providers:              []string{"aws"},
-			NodeProviders:          []string{"ec2"},
-			CNIs:                   []string{"calico"},
-		},
-		Prune:                    true,
-		CreateCluster:            true,
-		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
-	}),
+	charts.QaseEntry("[QASE-1907] (without encryption)",
+		[]interface{}{Label("LEVEL0", "backup-restore", "s3", "inplace")},
+		InplaceParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:            namegen.AppendRandomString("backup"),
+				ResourceSetName: "rancher-resource-set",
+				RetentionCount:  10,
+			},
+			BackupFileExtension: ".tar.gz",
+			ProvisioningInput: charts.ProvisioningConfig{
+				RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+				Providers:              []string{"aws"},
+				NodeProviders:          []string{"ec2"},
+				CNIs:                   []string{"calico"},
+			},
+			Prune:                    true,
+			CreateCluster:            true,
+			EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+		}),
 
-	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "s3", "inplace"), InplaceParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:                       namegen.AppendRandomString("backup"),
-			RetentionCount:             10,
-			EncryptionConfigSecretName: "encryptionconfig",
-		},
-		BackupFileExtension: ".tar.gz.enc",
-		ProvisioningInput: charts.ProvisioningConfig{
-			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
-			Providers:              []string{"aws"},
-			NodeProviders:          []string{"ec2"},
-			CNIs:                   []string{"calico"},
-		},
-		Prune:                    true,
-		CreateCluster:            true,
-		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
-	}),
+	charts.QaseEntry("[QASE-1907] (with encryption)",
+		[]interface{}{Label("LEVEL0", "backup-restore", "s3", "inplace")},
+		InplaceParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:                       namegen.AppendRandomString("backup"),
+				RetentionCount:             10,
+				EncryptionConfigSecretName: "encryptionconfig",
+			},
+			BackupFileExtension: ".tar.gz.enc",
+			ProvisioningInput: charts.ProvisioningConfig{
+				RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+				Providers:              []string{"aws"},
+				NodeProviders:          []string{"ec2"},
+				CNIs:                   []string{"calico"},
+			},
+			Prune:                    true,
+			CreateCluster:            true,
+			EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+		}),
 
-	Entry("(with Prune is set as false)", Label("LEVEL1", "backup-restore", "s3", "prune"), InplaceParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:                       namegen.AppendRandomString("backup"),
-			RetentionCount:             10,
-			EncryptionConfigSecretName: "encryptionconfig",
-		},
-		BackupFileExtension: ".tar.gz.enc",
-		ProvisioningInput: charts.ProvisioningConfig{
-			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
-			Providers:              []string{"aws"},
-			NodeProviders:          []string{"ec2"},
-			CNIs:                   []string{"calico"},
-		},
-		Prune:                    false,
-		CreateCluster:            false,
-		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
-	}),
+	charts.QaseEntry("[QASE-8281] (with Prune is set as false)",
+		[]interface{}{Label("LEVEL1", "backup-restore", "s3", "prune")},
+		InplaceParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:                       namegen.AppendRandomString("backup"),
+				RetentionCount:             10,
+				EncryptionConfigSecretName: "encryptionconfig",
+			},
+			BackupFileExtension: ".tar.gz.enc",
+			ProvisioningInput: charts.ProvisioningConfig{
+				RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+				Providers:              []string{"aws"},
+				NodeProviders:          []string{"ec2"},
+				CNIs:                   []string{"calico"},
+			},
+			Prune:                    false,
+			CreateCluster:            false,
+			EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+		}),
 
-	Entry("(with encryption config having asterisk *)", Label("LEVEL1", "backup-restore", "s3", "encryption-config-asterisk"), InplaceParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:                       namegen.AppendRandomString("backup"),
-			RetentionCount:             10,
-			EncryptionConfigSecretName: "encryptionconfig",
-		},
-		BackupFileExtension: ".tar.gz.enc",
-		ProvisioningInput: charts.ProvisioningConfig{
-			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
-			Providers:              []string{"aws"},
-			NodeProviders:          []string{"ec2"},
-			CNIs:                   []string{"calico"},
-		},
-		Prune:                    true,
-		CreateCluster:            false,
-		EncryptionConfigFilePath: charts.EncryptionConfigAsteriskFilePath,
-	}),
+	charts.QaseEntry("[QASE-6028] (with encryption config having asterisk *)",
+		[]interface{}{Label("LEVEL1", "backup-restore", "s3", "encryption-config-asterisk")},
+		InplaceParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:                       namegen.AppendRandomString("backup"),
+				RetentionCount:             10,
+				EncryptionConfigSecretName: "encryptionconfig",
+			},
+			BackupFileExtension: ".tar.gz.enc",
+			ProvisioningInput: charts.ProvisioningConfig{
+				RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+				Providers:              []string{"aws"},
+				NodeProviders:          []string{"ec2"},
+				CNIs:                   []string{"calico"},
+			},
+			Prune:                    true,
+			CreateCluster:            false,
+			EncryptionConfigFilePath: charts.EncryptionConfigAsteriskFilePath,
+		}),
 )

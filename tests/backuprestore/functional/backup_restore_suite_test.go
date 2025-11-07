@@ -27,6 +27,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	//. "github.com/rancher-sandbox/qase-ginkgo"
+	. "github.com/rancher-sandbox/qase-ginkgo"
 	"github.com/rancher/norman/types"
 	"github.com/rancher/observability-e2e/resources"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
@@ -80,6 +82,19 @@ var envTerraformVarMap = map[string]string{
 	"RKE2_VERSION":         "rke2_version",
 	"RANCHER_REPO_URL":     "rancher_repo_url",
 }
+
+var testCaseID int64
+
+var _ = ReportAfterEach(func(report SpecReport) {
+	if testCaseID == 0 {
+		return
+	}
+	// Add result in Qase if asked
+	Qase(testCaseID, report)
+
+	// This prevents the ID from "leaking" into the next test's ReportAfterEach execution.
+	testCaseID = 0
+})
 
 func FailWithReport(message string, callerSkip ...int) {
 	// Ensures the correct line numbers are reported
