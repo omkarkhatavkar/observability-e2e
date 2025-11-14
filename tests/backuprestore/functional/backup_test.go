@@ -108,6 +108,10 @@ var _ = DescribeTable("BackupTests: ",
 			}
 			e2e.Logf("Successfully created encryption config secret: %s", secretName)
 		}
+		By("Clean all backups before creating retention backups")
+		err = s3Client.DeleteAllObjects(BackupRestoreConfig.S3BucketName)
+		Expect(err).NotTo(HaveOccurred())
+
 		By("Creating the rancher backup")
 		backupObject, filename, err := charts.CreateRancherBackupAndVerifyCompleted(clientWithSession, params.BackupOptions)
 		Expect(err).NotTo(HaveOccurred())
